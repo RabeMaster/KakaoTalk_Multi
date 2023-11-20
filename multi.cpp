@@ -1,10 +1,10 @@
-#include <iostream>
-#include <vector>
-
 #include <Windows.h>
 #include <TlHelp32.h>
 #include <string.h>
 #include <winternl.h>
+
+#include <iostream>
+#include <vector>
 
 #define SystemExtendedHandleInformation 64
 #define ObjectNameInformation 1
@@ -34,8 +34,8 @@ typedef NTSTATUS(NTAPI* NtQueryObject_t)(
     PVOID ObjectInformation, ULONG ObjectInformationLength,
     PULONG ReturnLength);
 
-bool Patch(DWORD hPid);
-std::vector<DWORD> Update();
+bool patch(DWORD hPid);
+std::vector<DWORD> get_list();
 
 int main() {
   system("Color 0F");
@@ -45,8 +45,8 @@ int main() {
   std::cout << "Running\n";
 
   while (true) {
-    for (auto elem : Update()) {
-      if (Patch(elem)) {
+    for (auto elem : get_list()) {
+      if (patch(elem)) {
         std::cout << "Patched - " << elem << "\n";
       }
       Sleep(1000);
@@ -55,7 +55,7 @@ int main() {
   return 0;
 }
 
-bool Patch(DWORD hPid) {
+bool patch(DWORD hPid) {
   HINSTANCE hInst = GetModuleHandle("ntdll.dll");
   HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, false, hPid);
 
@@ -100,11 +100,15 @@ bool Patch(DWORD hPid) {
       bool stat = DuplicateHandle(hProcess, (HANDLE)pEntry->HandleValue,
                                   GetCurrentProcess(), &hTargetHandle, 0, 0,
                                   DUPLICATE_SAME_ACCESS);
-      if (!stat) continue;
+      if (!stat) {
+        continue;
+      }
       status = _NtQueryObject((HANDLE)hTargetHandle,
                               (OBJECT_INFORMATION_CLASS)ObjectNameInformation,
                               nameBuf, 1024, &length);
-      if (!NT_SUCCESS(status)) continue;
+      if (!NT_SUCCESS(status)) {
+        continue;
+      }
 
       if (wcsstr(nameBuf + 4, L"97C4DDD9") != 0) {
         HANDLE handle;
@@ -124,10 +128,12 @@ bool Patch(DWORD hPid) {
   return false;
 }
 
-std::vector<DWORD> Update() {
+std::vector<DWORD> get_list() {
   std::vector<DWORD> temp;
   HANDLE hModule = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-  if (hModule == INVALID_HANDLE_VALUE) return temp;
+  if (hModule == INVALID_HANDLE_VALUE) {
+    return temp;
+  }
 
   PROCESSENTRY32 processInfo;
   processInfo.dwSize = sizeof(PROCESSENTRY32);
@@ -138,5 +144,6 @@ std::vector<DWORD> Update() {
       continue;
     }
   } while (Process32Next(hModule, &processInfo));
+
   return temp;
 }
